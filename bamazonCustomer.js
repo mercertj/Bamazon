@@ -1,24 +1,5 @@
-// Then create a Node application called bamazonCustomer.js. Running this application will first display all of the items available for sale. Include the ids, names, and prices of products for sale.
-// The app should then prompt users with two messages.
-// The first should ask them the ID of the product they would like to buy.
-// The second message should ask how many units of the product they would like to buy.
-// Once the customer has placed the order, your application should check if your store has enough of the product to meet the customer's request.
-// If not, the app should log a phrase like Insufficient quantity!, and then prevent the order from going through.
-// However, if your store does have enough of the product, you should fulfill the customer's order.
-// This means updating the SQL database to reflect the remaining quantity.
-// Once the update goes through, show the customer the total cost of their purchase.
-// If this activity took you between 8-10 hours, then you've put enough time into this assignment. Feel free to stop here -- unless you want to take on the next challeng
-var express = require("express");
-var app = express();
-var PORT = 3306;
-
-function handleRequest(req, res) {
-    //fill in later
-}
-
-var mysql = require("mysql");
-// var prompt = require("prompt");
-
+var mysql = require('mysql');
+var inquirer = require('inquirer');
 
 var connection = mysql.createConnection({
     host: "localhost",
@@ -26,28 +7,69 @@ var connection = mysql.createConnection({
     user: "root",
     password: "Fluffy#1",
     database: "bamazon"
-});
-
-module.exports = connection;
-
-var checkOutTotal = [];
-
+})
 
 connection.connect(function(err) {
     if (err) throw err;
     console.log("Connected!");
-    connection.query(mysql, function(err, result) {
-        if (err) throw err;
-        console.log("Result: " + result);
-    });
-});
+    makeTable();
 
-//prompt code/function to start process??
+})
 
-//code to total item count and add up balance due
+var makeTable = function() {
+    connection.query("SELECT * FROM products", function(err, res) {
+        for (var i = 0; i < res.length; i++) {
+            console.log(res[i].item_id + " || " + res[i].product_name + " || " + res[i].department_name + " || " + res[i].price + " || " + res[i].stock_quantity + "\n ");
+        }
+        promptCustomer(res);
+    })
+}
 
-//
+var promptCustomer = function(res) {
+    inquirer.prompt({
+        type: 'input',
+        name: 'choice',
+        message: "What would you like to purchase? [Quit with Q]"
+    }).then(function(answer) {
+        var correct = false;
+        if (answer.choice.toUpperCase() == "Q") {
+            process.exit();
+        }
+        for (var i = 0; i < res.length; i++) {
+            if (res[i].product_name == answer.choice) {
+                correct = true;
+                var product = answer.choice;
+                var id = i;
+                inquirer.prompt({
+                    type: "input",
+                    name: "quant",
+                    message: "How many would you like to buy?",
+                    validate: function(value) {
+                        if (isNaN(value) == false) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+                }).then(function(answer) {
+                    if ((res[id].stock_quantity - answer.quant) > 0) {
+                        connection.query("UPDATE products SET stock_quantity='" + (res[id].stock_quantity - answer.quant) + "' WHERE product_name='" + product + "'", function(err, res2) {
+                            console.log("Product Bought!");
+                            makeTable();
+                        })
+                    } else {
+                        console.log("Not a valid selection");
+                        promptCustomer(res);
+                    }
 
-app.listen(PORT, function() {
-  console.log("App listening on PORT " + PORT);
-});
+                })
+
+            }
+        }
+        if (i == res.length && correct == false) {
+            console.log("Not a valid selection");
+            promptCustomer(res);
+        }
+
+    })
+}
